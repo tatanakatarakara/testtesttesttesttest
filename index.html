@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スロットゲーム</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            position: relative;
+            overflow: hidden;
+        }
+        .slot-container {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            gap: 10px;
+            margin: 20px;
+        }
+        .slot {
+            width: 100px;
+            height: 100px;
+            background-color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+        }
+        .slot.spin {
+            animation: spin 0.1s linear infinite;
+        }
+        @keyframes spin {
+            0% {
+                transform: rotateX(0);
+            }
+            100% {
+                transform: rotateX(360deg);
+            }
+        }
+        .score {
+            margin: 20px;
+        }
+        .result-message {
+            color: red;
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+        .win-message {
+            font-size: 1.5em;
+            margin-top: 20px;
+            display: none;
+            animation: rotate 1s linear infinite;
+        }
+        @keyframes rotate {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>スロットゲーム</h1>
+    <div class="slot-container" id="slotContainer">
+        <div class="slot" id="slot1">0</div>
+        <div class="slot" id="slot2">0</div>
+        <div class="slot" id="slot3">0</div>
+        <div class="slot" id="slot4">0</div>
+        <div class="slot" id="slot5">0</div>
+        <div class="slot" id="slot6">0</div>
+        <div class="slot" id="slot7">0</div>
+        <div class="slot" id="slot8">0</div>
+        <div class="slot" id="slot9">0</div>
+    </div>
+    <div class="score">スコア: <span id="score">1000</span></div>
+    <div class="result-message" id="resultMessage"></div>
+    <div class="win-message" id="winMessage"></div>
+    <script>
+        const characters = [...Array(10).keys()].map(String).concat(['の', 'ゔ', 'お']);
+        let score = 1000;
+        let isSpinning = false;
+        let isAnimating = false;
+        let intervals = [];
+        const stoppedColumns = [false, false, false]; // 各列が停止したかどうかを追跡
+        const slotElements = [
+            document.getElementById('slot1'), document.getElementById('slot2'), document.getElementById('slot3'),
+            document.getElementById('slot4'), document.getElementById('slot5'), document.getElementById('slot6'),
+            document.getElementById('slot7'), document.getElementById('slot8'), document.getElementById('slot9')
+        ];
+        const resultMessage = document.getElementById('resultMessage');
+        const winMessage = document.getElementById('winMessage');
+
+        function getRandomCharacter(excludeCharacters) {
+            let char;
+            do {
+                char = characters[Math.floor(Math.random() * characters.length)];
+            } while (excludeCharacters.includes(char));
+            return char;
+        }
+
+        function startSpinning() {
+            if (isSpinning || isAnimating) return;
+            if (score < 10) {
+                alert('スコアが足りません');
+                return;
+            }
+            isSpinning = true;
+            resultMessage.textContent = '';
+            winMessage.style.display = 'none';
+            score -= 10;
+            document.getElementById('score').textContent = score;
+            stoppedColumns.fill(false); // 各列の停止状態をリセット
+
+            slotElements.forEach(slot => slot.classList.add('spin'));
+
+            intervals = slotElements.map(slot => setInterval(() => {
+                slot.textContent = characters[Math.floor(Math.random() * characters.length)];
+                slot.style.color = '#000'; // スロットの色をリセット
+            }, 100));
+        }
+
+        function stopColumn(index) {
+            if (!isSpinning || stoppedColumns[index]) return; // 既に止めた列は無効
+            stoppedColumns[index] = true;
+
+            for (let row = 0; row < 3; row++) {
+                const slotIndex = index + row * 3;
+                clearInterval(intervals[slotIndex]);
+                intervals[slotIndex] = null;
+
+                const excludeCharacters = [];
+                for (let r = 0; r < row; r++) {
+                    excludeCharacters.push(slotElements[index + r * 3].textContent);
+                }
+
+                slotElements[slotIndex].textContent = getRandomCharacter(excludeCharacters);
+            }
+
+            // 列ごとに回転アニメーションを停止
+            for (let row = 0; row < 3; row++) {
+                slotElements[index + row * 3].classList.remove('spin');
+            }
+
+            if (stoppedColumns.every(stopped => stopped)) {
+                isSpinning = false;
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            const values = slotElements.map(slot => slot.textContent);
+            const winLines = [
+                [0, 1, 2], // top row
+                [3, 4, 5], // middle row
+                [6, 7, 8], // bottom row
+                [0, 4, 8], // diagonal top-left to bottom-right
+                [2, 4, 6]  // diagonal top-right to bottom-left
+            ];
+
+            let winType = '';
+            for (const line of winLines) {
+                const lineValues = line.map(index => values[index]);
+                if (lineValues[0] === 'の' && lineValues[1] === 'ゔ' && lineValues[2] === 'お') {
+                    winType = line[0] === 0 ? 'マスンゴ！' : 'ながんご！';
+                    break;
+                }
+            }
+
+            if (winType) {
+                resultMessage.textContent = winType;
+                score += 10000;
+                document.getElementById('score').textContent = score;
+                isAnimating = true;
+                winMessage.textContent = winType;
+                winMessage.style.display = 'block';
+                setTimeout(() => {
+                    winMessage.style.display = 'none';
+                    isAnimating = false;
+                }, 1000);
+            }
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (isAnimating) return;  // アニメーション中は操作無効
+            if (event.key === '0') {
+                startSpinning();
+            } else if (['1', '2', '3'].includes(event.key)) {
+                stopColumn(Number(event.key) - 1);
+            }
+        });
+    </script>
+</body>
+</html>
